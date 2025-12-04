@@ -47,6 +47,7 @@ def transcribe_youtube_audio(url: str) -> str:
             "outtmpl": outtmpl,
             "quiet": True,
             "noprogress": True,
+            "cookiefile": os.getenv("YTDLP_COOKIES", "").strip(),  # ← NEW LINE
         }
         with YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -58,6 +59,7 @@ def transcribe_youtube_audio(url: str) -> str:
                 file=f
             )
         return resp.text.strip() if hasattr(resp, "text") else ""
+
 
 @app.post("/transcript", response_model=TranscriptResponse)
 def get_transcript(
@@ -102,3 +104,4 @@ def get_transcript(
         source=source,
         error=error
     )
+
