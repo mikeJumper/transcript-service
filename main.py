@@ -8,6 +8,16 @@ app = FastAPI()
 
 API_KEY = os.getenv("TRANSCRIPT_API_KEY", "").strip()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+COOKIE_FILE = None
+cookies_text = os.getenv("YTDLP_COOKIES", "").strip()
+if cookies_text:
+    import tempfile
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".txt")
+    tmp.write(cookies_text.encode("utf-8"))
+    tmp.flush()
+    tmp.close()
+    COOKIE_FILE = tmp.name
+
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 class TranscriptRequest(BaseModel):
@@ -104,4 +114,5 @@ def get_transcript(
         source=source,
         error=error
     )
+
 
