@@ -8,10 +8,11 @@ app = FastAPI()
 
 API_KEY = os.getenv("TRANSCRIPT_API_KEY", "").strip()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+
+# Optional cookie text blob from env (full Netscape cookie file contents)
 COOKIE_FILE = None
 cookies_text = os.getenv("YTDLP_COOKIES", "").strip()
 if cookies_text:
-    import tempfile
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".txt")
     tmp.write(cookies_text.encode("utf-8"))
     tmp.flush()
@@ -20,16 +21,19 @@ if cookies_text:
 
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
+
 class TranscriptRequest(BaseModel):
     platform: str
     url: str
     metadata_blob: str | None = None
+
 
 class TranscriptResponse(BaseModel):
     transcript: str
     language: str | None = "unknown"
     source: str
     error: str | None = None
+
 
 def extract_snippet_text(blob: str | None) -> str:
     if not blob:
@@ -40,39 +44,43 @@ def extract_snippet_text(blob: str | None) -> str:
         return ""
     sn = meta.get("snippet", {}) or {}
     parts = []
-    if sn.get("title"): parts.append(sn["title"])
-    if sn.get("description"): parts.append(sn["description"])
+    if sn.get("title"):
+        parts.append(sn["title"])
+    if sn.get("description"):
+        parts.append(sn["description"])
     tags = sn.get("tags") or []
     if isinstance(tags, list) and tags:
         parts.append(" ".join(tags))
     return " ".join(parts).replace("\n", " ").strip()
 
+
 def transcribe_youtube_audio(url: str) -> str:
     if not client:
         raise RuntimeError("OPENAI_API_KEY not configured")
+
     with tempfile.TemporaryDirectory() as tmpdir:
         outtmpl = os.path.join(tmpdir, "audio.%(ext)s")
-ydl_opts = {
-    "format": "bestaudio/best",
-    "outtmpl": outtmpl,
-    "quiet": True,
-    "noprogress": True,
-}
+        ydl_opts = {
+            "format": "bestaudio/best",
+            "outtmpl": outtmpl,
+            "quiet": True,
+            "noprogress": True,
+        }
 
-# If cookies were loaded into COOKIE_FILE, attach them to yt-dlp
-if COOKIE_FILE:
-    ydl_opts["cookiefile"] = COOKIE_FILE
+        # Attach cookies file if present
+        if COOKIE_FILE:
+            ydl_opts["cookiefile"] = COOKIE_FILE
 
-with YoutubeDL(ydl_opts) as ydl:
-    info = ydl.extract_info(url, download=True)
-    filepath = ydl.prepare_filename(info)
-
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filepath = ydl.prepare_filename(info)
 
         with open(filepath, "rb") as f:
             resp = client.audio.transcriptions.create(
                 model="whisper-1",
                 file=f
             )
+
         return resp.text.strip() if hasattr(resp, "text") else ""
 
 
@@ -88,11 +96,11 @@ def get_transcript(
     if not authorization.startswith(prefix) or authorization[len(prefix):] != API_KEY:
         raise HTTPException(401, "Unauthorized")
 
-    # Try real audio transcription first
     transcript = ""
     error = None
     source = "none"
 
+    # Try real audio transcription first
     try:
         if req.platform.lower() == "youtube":
             transcript = transcribe_youtube_audio(req.url)
@@ -119,6 +127,3 @@ def get_transcript(
         source=source,
         error=error
     )
-
-
-
