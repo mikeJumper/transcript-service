@@ -52,16 +52,21 @@ def transcribe_youtube_audio(url: str) -> str:
         raise RuntimeError("OPENAI_API_KEY not configured")
     with tempfile.TemporaryDirectory() as tmpdir:
         outtmpl = os.path.join(tmpdir, "audio.%(ext)s")
-        ydl_opts = {
-            "format": "bestaudio/best",
-            "outtmpl": outtmpl,
-            "quiet": True,
-            "noprogress": True,
-            "cookiefile": os.getenv("YTDLP_COOKIES", "").strip(),  # ← NEW LINE
-        }
-        with YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filepath = ydl.prepare_filename(info)
+ydl_opts = {
+    "format": "bestaudio/best",
+    "outtmpl": outtmpl,
+    "quiet": True,
+    "noprogress": True,
+}
+
+# If cookies were loaded into COOKIE_FILE, attach them to yt-dlp
+if COOKIE_FILE:
+    ydl_opts["cookiefile"] = COOKIE_FILE
+
+with YoutubeDL(ydl_opts) as ydl:
+    info = ydl.extract_info(url, download=True)
+    filepath = ydl.prepare_filename(info)
+
 
         with open(filepath, "rb") as f:
             resp = client.audio.transcriptions.create(
@@ -114,5 +119,6 @@ def get_transcript(
         source=source,
         error=error
     )
+
 
 
